@@ -1,0 +1,52 @@
+#!/bin/sh
+# backup.config
+# Original Script from SuSE Linux
+# Copyright (c) 1996-2002 SuSE Linux AG, Nuernberg, Germany.
+#
+umask 022
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+export PATH
+export BACKUP_DIR=/var/adm/backup
+export SYSTEM=mailrelay
+export FILES="/etc/aliases /etc/postfix /etc/sysctl.conf /etc/default /etc/init.d /etc/group /etc/passwd /etc/rc6.d /etc/rc5.d /etc/rc4.d /etc/rc3.d /etc/rc2.d /etc/rc1.d /etc/rc0.d /etc/profile.d /etc/bash.bashrc /etc/timezone /etc/localtime /etc/hosts /etc/hostname /etc/sudoers /etc/sudoers.d /etc/incron* /etc/cron* /etc/ssl /etc/multipath.conf /etc/netplan /etc/network /etc/logrotate* /etc/logwatch"
+export MAX_BACKUPS=14
+
+#
+# create backups archive of files
+#
+if test -n "$BACKUP_DIR" ; then
+    mkdir -p $BACKUP_DIR
+    OLD_MD5=""
+    test -e $BACKUP_DIR/"$SYSTEM"_recent_md5 && \
+        OLD_MD5="`cat $BACKUP_DIR/"$SYSTEM"_recent_md5`"
+    NEW_MD5="`find $FILES -type f | xargs cat | md5sum`"
+    if test "$OLD_MD5" != "$NEW_MD5" ; then
+        DATESTRING=`date +"%Y%m%d"`
+        NEWNAME=$BACKUP_DIR/$SYSTEM-$DATESTRING.tar.gz
+        NUMBER=2
+        while [ -e $NEWNAME ] ; do
+            NEWNAME=$BACKUP_DIR/$SYSTEM-$DATESTRING-$NUMBER.tar.gz
+            NUMBER=`expr $NUMBER + 1`
+        done
+
+        if tar czfp $NEWNAME $FILES 2>/dev/null ; then
+            echo "$NEW_MD5" > $BACKUP_DIR/"$SYSTEM"_recent_md5
+            test "$MAX_BACKUPS" -gt 0 2> /dev/null || MAX_BACKUPS=0
+            NUMBER=1
+            for BACKUPFILE in `ls -1 -t $BACKUP_DIR/$SYSTEM-*` ; do
+                if test "$NUMBER" -gt "$MAX_BACKUPS" ; then
+                    rm -f $BACKUPFILE
+                fi
+                NUMBER=`expr $NUMBER + 1`
+            done
+        else
+            echo "ERROR!! can not backup $SYSTEM files"
+	    echo "to $BACKUP_DIR."
+            echo "Maybe there is not enough disk space."
+            rm -f $NEWNAME
+        fi
+    fi
+fi
+
+exit 0
